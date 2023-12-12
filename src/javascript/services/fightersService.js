@@ -14,7 +14,6 @@ class FighterService {
 
     async getFighterDetails(id) {
         // todo: implement this method
-        // adding
         // endpoint - `details/fighter/${id}.json`;
         try {
             const endpoint = `details/fighter/${id}.json`;
