@@ -1,5 +1,7 @@
 import createElement from '../helpers/domHelper';
 import { createFighterImage } from './fighterPreview';
+import controls from '../../constants/controls';
+import { fight, getBlockPower, getDamage, getHitPower } from './fight';
 
 function createFighter(fighter, position) {
     const imgElement = createFighterImage(fighter);
@@ -59,7 +61,34 @@ function createArena(selectedFighters) {
     return arena;
 }
 
-export default function renderArena(selectedFighters) {
+function updateFightStatus(selectedFighters) {
+    const [firstFighter, secondFighter] = selectedFighters;
+
+    const leftFighterHealth = Math.max(0, firstFighter.health);
+    const leftHealthIndicator = document.getElementById('left-fighter-indicator');
+    leftHealthIndicator.style.width = `${leftFighterHealth}%`;
+
+    const rightFighterHealth = Math.max(0, secondFighter.health);
+    const rightHealthIndicator = document.getElementById('right-fighter-indicator');
+    rightHealthIndicator.style.width = `${rightFighterHealth}%`;
+}
+
+function endFight(winner) {
+    const winnerContainer = document.getElementById('winner-container');
+    const winnerName = document.getElementById('winner-name');
+
+    if (winner) {
+        winnerName.innerText = `Winner: ${winner.name}`;
+        winnerContainer.classList.add('fullscreen');
+        setTimeout(() => {
+            window.location.reload();
+        }, 5000);
+    } else {
+        winnerName.innerText = 'Both are winners!';
+    }
+}
+
+export default async function renderArena(selectedFighters) {
     const root = document.getElementById('root');
     const arena = createArena(selectedFighters);
 
@@ -69,4 +98,66 @@ export default function renderArena(selectedFighters) {
     // todo:
     // - start the fight
     // - when fight is finished show winner
+
+    let winner = null;
+    winner = await fight(...selectedFighters);
+
+    const winnerElement = createElement({ tagName: 'div', className: 'arena___winner' });
+    arena.append(winnerElement);
+
+    function handleKeyDown(event) {
+        const [firstFighter, secondFighter] = selectedFighters;
+        if (event.code === controls.PlayerOneAttack) {
+            const firstFighterHitPower = getHitPower(firstFighter);
+            const secondFighterBlockPower = getBlockPower(secondFighter);
+            const firstFighterDamage = getDamage(firstFighterHitPower, secondFighterBlockPower);
+            secondFighter.health -= firstFighterDamage;
+
+            updateFightStatus(selectedFighters);
+        } else if (event.code === controls.PlayerOneBlock) {
+            firstFighter.defense += 10;
+        } else if (event.code === controls.PlayerTwoAttack) {
+            const secondFighterHitPower = getHitPower(secondFighter);
+            const firstFighterBlockPower = getBlockPower(firstFighter);
+            const secondFighterDamage = getDamage(secondFighterHitPower, firstFighterBlockPower);
+            firstFighter.health -= secondFighterDamage;
+
+            updateFightStatus(selectedFighters);
+        } else if (event.code === controls.PlayerTwoBlock) {
+            secondFighter.defense += 10;
+        } else if (controls.PlayerOneCriticalHitCombination.includes(event.code)) {
+            const firstFighterHitPower = getHitPower(firstFighter) * 2;
+            const secondFighterBlockPower = getBlockPower(secondFighter);
+            const firstFighterDamage = getDamage(firstFighterHitPower, secondFighterBlockPower);
+            secondFighter.health -= firstFighterDamage;
+
+            updateFightStatus(selectedFighters);
+        } else if (controls.PlayerTwoCriticalHitCombination.includes(event.code)) {
+            const secondFighterHitPower = getHitPower(secondFighter) * 2;
+            const firstFighterBlockPower = getBlockPower(firstFighter);
+            const secondFighterDamage = getDamage(secondFighterHitPower, firstFighterBlockPower);
+            firstFighter.health -= secondFighterDamage;
+
+            updateFightStatus(selectedFighters);
+        }
+
+        if (firstFighter.health <= 0 && secondFighter.health <= 0) {
+            winner = null;
+        } else if (firstFighter.health <= 0) {
+            winner = secondFighter;
+        } else if (secondFighter.health <= 0) {
+            winner = firstFighter;
+        }
+        const winnerContainer = document.getElementById('winner-container');
+
+        if (winner) {
+            winnerContainer.style.display = 'block';
+            endFight(winner);
+            document.removeEventListener('keydown', handleKeyDown);
+        } else {
+            winnerContainer.style.display = 'none';
+        }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
 }
